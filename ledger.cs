@@ -281,6 +281,7 @@ namespace Ledger {
             Console.WriteLine("Always available: new, logon, logout, help, quit");
             Console.WriteLine("When logged on: balance, deposit, withdraw, history");
         }
+        
         private void newUser() {
             if (manager.LoggedOn) {
                 Console.Write($"Already logged in as user {manager.UserName}, logout (y/n)? ");
@@ -329,20 +330,10 @@ namespace Ledger {
         }
 
         private void balance() {
-            if (!manager.LoggedOn) {
-                Console.WriteLine("Must be logged on to view balance.");
-                return;
-            }
-
             Console.WriteLine($"Current balance: ${manager.Balance}");
         }
 
         private void deposit() {
-            if (!manager.LoggedOn) {
-                Console.WriteLine("Must be logged in to deposit.");
-                return;
-            }
-
             Console.Write("Despoit amount > ");
             string input = Console.ReadLine();
             double amount;
@@ -357,11 +348,6 @@ namespace Ledger {
         }
 
         private void withdraw() {
-            if (!manager.LoggedOn) {
-                Console.WriteLine("Must be logged in to withdraw.");
-                return;
-            }
-
             Console.Write("Withdrawl amount > ");
             string input = Console.ReadLine();
             double amount;
@@ -376,11 +362,6 @@ namespace Ledger {
         }
 
         private void history() {
-            if (!manager.LoggedOn) {
-                Console.WriteLine("Must be logged in to withdraw.");
-                return;
-            }
-
             Console.WriteLine($"Transaction history for user {manager.UserName}:");
             var transactions = manager.TransactionHistory;
             foreach (var t in transactions) {

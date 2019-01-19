@@ -132,8 +132,8 @@ namespace Ledger {
         }
 
         // private methods
-        private void recordTransaction(string verb, double value, bool success=true) {
-            recordTransaction(verb, value, success, string.Empty);
+        private void recordTransaction(string verb, double value) {
+            transactionHistory.Add(new Transaction(verb, value));
         }
         private void recordTransaction(string verb, double value, bool success, string message) {
             transactionHistory.Add(new Transaction(verb, value, success, message));
@@ -143,28 +143,27 @@ namespace Ledger {
 
     // TODO: add reference to currentAccount, rather than coding the pathways through.
     class AccountManager {
-        private bool loggedIn;
         private Account currentAccount;
         private List<Account> accounts;
 
         // constructor
         public AccountManager() {
-            loggedIn = false;
             accounts = new List<Account>();
+            currentAccount = null;
         }
 
         // properties
-        public bool LoggedIn {
-            get { return loggedIn; }
+        public bool LoggedOn {
+            get { return currentAccount != null; }
         }
-        public string CurrentUser {
-            get { return LoggedIn ? currentAccount.UserName : "<Not logged in >"; }
+        public string UserName {
+            get { return LoggedOn ? currentAccount.UserName : string.Empty; }
         }
         public double Balance {
-            get { return LoggedIn ? currentAccount.Balance : 0; }
+            get { return LoggedOn ? currentAccount.Balance : 0; }
         }
         public List<string> TransactionHistory {
-            get { return LoggedIn ? currentAccount.TransactionHistory : null; }
+            get { return LoggedOn ? currentAccount.TransactionHistory : null; }
         }
 
         // public methods
@@ -175,7 +174,6 @@ namespace Ledger {
                 return false;
             }
             msg = $"Account created: {user}";
-            loggedIn = true;
             currentAccount = new Account(user, pass);
             accounts.Add(currentAccount);
             return true;
@@ -197,18 +195,16 @@ namespace Ledger {
             currentAccount = account;
             msg = currentAccount.LastLogOn.ToString();
             currentAccount.UpdateLastLogOn();
-            loggedIn = true;
             return true;
         }
 
         public void LogOut() {
             //currentAccount.store();
             currentAccount = null;
-            loggedIn = false;
         }
 
         public bool Deposit(double amount, out string msg) {
-            if (!LoggedIn) {
+            if (!LoggedOn) {
                 msg = "Not logged in.";
                 return false;
             }
@@ -216,7 +212,7 @@ namespace Ledger {
         }
 
         public bool Withdraw(double amount, out string msg) {
-            if (!LoggedIn) {
+            if (!LoggedOn) {
                 msg = "Not logged in.";
                 return false;
             }
@@ -236,50 +232,42 @@ namespace Ledger {
     // TODO: If user is not logged in, only give options to log on or add new user.
     class CLI {
         private AccountManager manager;
+        private Dictionary<string, Action> options;
 
         public CLI() {
             manager = new AccountManager();
+            options = new Dictionary<string, Action>();
+            options["new"] = newUser;
+            options["logon"] = logOnUser;
+            options["logout"] = logOutUser;
+            options["balance"] = balance;
+            options["deposit"] = deposit;
+            options["withdraw"] = withdraw;
+            options["history"] = history;
+            options["help"] = help;
+
         }
 
         public void Run() {
             string input = string.Empty;
-            while (!input.Equals("quit")) {
-                Console.WriteLine($"Current user: {manager.CurrentUser}");
-                Console.WriteLine("Options: new, login, logout, balance, history, deposit, withdraw, quit");
-                Console.Write("> ");
+            Console.WriteLine("Transaction Ledger.");
+            Console.WriteLine("Create new account with \"new\". Type \"help\" to see all options.");
+            while (true) {
+                Console.Write($"{manager.LoggedOn ? manager.UserName : ""}>");
                 input = Console.ReadLine();
 
-                switch (input) {
-                    case "new":
-                        newUser();
-                        break;
-                    case "login":
-                        loginUser();
-                        break;
-                    case "logout":
-                        logOutUser();
-                        break;
-                    case "balance":
-                        if (!manager.LoggedIn)
-                            Console.WriteLine("Must log-in before checking balance.");
-                        else
-                            Console.WriteLine($"Current balance: ${manager.Balance}");
-                        break;
-                    case "deposit":
-                        deposit();
-                        break;
-                    case "withdraw":
-                        withdraw();
-                        break;
-                    case "history":
-                        history();
-                        break;
-                    case "quit":
-                        break;
-                    default:
-                        Console.WriteLine($"Option {input} not recognized."); 
-                        break;                   
+                // Ensure user cannot perform actions that require login without being logged on.
+                // ...feels like there is a better way, but I'll go with this for now...
+                if (!manager.LoggedOn && (input.Equals("balance") || input.Equals("deposit") || input.Equals("withdraw") || input.Equals("history"))) {
+                    Console.WriteLine($"Must be logged on to perform \"{input}\".");
+                } else if (input.Equals("quit")) {
+                    break;
+                } else if (!options.ContainsKey(input)) {
+                    Console.WriteLine($"Option \"{input}\" not recognized."); 
+                } else {
+                    options[input]();
                 }
+                
                 Console.WriteLine();
             } 
         }
@@ -289,9 +277,13 @@ namespace Ledger {
 
         }
 
+        private void help() {
+            Console.WriteLine("Always available: new, logon, logout, help, quit");
+            Console.WriteLine("When logged on: balance, deposit, withdraw, history");
+        }
         private void newUser() {
-            if (manager.LoggedIn) {
-                Console.Write($"Already logged in as user {manager.CurrentUser}, logout (y/n)? ");
+            if (manager.LoggedOn) {
+                Console.Write($"Already logged in as user {manager.UserName}, logout (y/n)? ");
                 string input = Console.ReadLine();
                 if (!input.Equals("y"))
                     return;
@@ -308,9 +300,9 @@ namespace Ledger {
                 Console.WriteLine($"User creation failed: {msg}");
         }
 
-        private void loginUser() {
-            if (manager.LoggedIn) {
-                Console.Write($"Already logged in as user {manager.CurrentUser}, logout (y/n)? ");
+        private void logOnUser() {
+            if (manager.LoggedOn) {
+                Console.Write($"Already logged on as user {manager.UserName}, logout (y/n)? ");
                 string input = Console.ReadLine();
                 if (!input.Equals("y"))
                     return;
@@ -324,20 +316,29 @@ namespace Ledger {
 
             bool success = manager.LogOn(user, pass, out string msg);
             if (!success)
-                Console.WriteLine($"LogOn failed: {msg}");
+                Console.WriteLine($"Log on failed: {msg}");
             else
-                Console.WriteLine($"User {user} logged in. Last LogOn at {msg}");
+                Console.WriteLine($"User {user} logged on. Last Log on at {msg}");
         }
 
         private void logOutUser() {
-            if (!manager.LoggedIn) 
+            if (!manager.LoggedOn) 
                 return;
             
             manager.LogOut();
         }
 
+        private void balance() {
+            if (!manager.LoggedOn) {
+                Console.WriteLine("Must be logged on to view balance.");
+                return;
+            }
+
+            Console.WriteLine($"Current balance: ${manager.Balance}");
+        }
+
         private void deposit() {
-            if (!manager.LoggedIn) {
+            if (!manager.LoggedOn) {
                 Console.WriteLine("Must be logged in to deposit.");
                 return;
             }
@@ -356,7 +357,7 @@ namespace Ledger {
         }
 
         private void withdraw() {
-            if (!manager.LoggedIn) {
+            if (!manager.LoggedOn) {
                 Console.WriteLine("Must be logged in to withdraw.");
                 return;
             }
@@ -375,12 +376,12 @@ namespace Ledger {
         }
 
         private void history() {
-            if (!manager.LoggedIn) {
+            if (!manager.LoggedOn) {
                 Console.WriteLine("Must be logged in to withdraw.");
                 return;
             }
 
-            Console.WriteLine($"Transaction history for user {manager.CurrentUser}:");
+            Console.WriteLine($"Transaction history for user {manager.UserName}:");
             var transactions = manager.TransactionHistory;
             foreach (var t in transactions) {
                 Console.WriteLine(t);

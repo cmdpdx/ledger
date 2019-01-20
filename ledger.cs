@@ -1,23 +1,32 @@
 using System;
+using System.IO;
 using System.Text;
 using System.Collections.Generic;
 using System.Security.Cryptography;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Formatters.Binary;
 
 namespace Ledger {
-    class Account {
+    [Serializable()]
+    public class Account {
 
+        // Private class to encapsulate storaging, hashing, and checking of passwords.
+        [Serializable()]
         private class Password {
             private string hashedPassword;
+
             public Password(string password) {
                 hashedPassword = GetPasswordHash(password);
             } 
 
+            // Tests if hash of the supplied password matches the stored password hash. 
             public bool CheckPassword(string testPassword) {
                 string testHash = GetPasswordHash(testPassword);
                 StringComparer comparer = StringComparer.OrdinalIgnoreCase;
                 return comparer.Compare(testHash, hashedPassword) == 0;
             }
 
+            // Creates a new password hash; returns a string represeting the byte array
             private string GetPasswordHash(string input) {
                 var sb = new StringBuilder();
                 using (SHA256 sha256 = SHA256.Create()) {
@@ -30,6 +39,7 @@ namespace Ledger {
             }
         }
 
+        [Serializable()]
         private struct Transaction {
             public DateTime TimeStamp { get; }
             public string Verb {get; set; }
@@ -90,8 +100,12 @@ namespace Ledger {
             transactionHistory = new List<Transaction>();
         }
 
-        // public methods
+        // Attempt to deposit the given amount into the account balance.
+        // Record successful deposits in the transaction history.
+        // Returns: true/false on success/failure of deposit. 
+        // Output parameter msg contains informational message on success/failure. 
         public bool Deposit(double amount, out string msg) {
+            // Don't allow negative deposits
             if (amount < 0) {
                 msg = $"Deposit amount ({amount}) must be positive.";
                 return false; 
@@ -102,11 +116,17 @@ namespace Ledger {
             return true;
         }
 
+        // Attempt to withdraw the given amount into the account balance.
+        // Record successful withdrawls in the transaction history.
+        // Returns: true/false on success/failure of withdrawl. 
+        // Output parameter msg contains informational message on success/failure.
         public bool Withdraw(double amount, out string msg) {
+            // Don't allow negative withdrawls
             if (amount < 0) {
                 msg = $"Withdrawl amount (${amount}) must be positive.";
                 return false;
             }
+            // Don't allow withdrawls larger than current balance. Record failed withdrawl on transaction history
             if (amount > balance) {
                 recordTransaction("withdrawl", amount, false, "insufficient funds");
                 msg = $"Insufficient funds to withdraw {amount}. (Current balance ${balance})";
@@ -118,6 +138,7 @@ namespace Ledger {
             return true;
         }
 
+        // Test whether the supplied password matches this account's password
         public bool CheckPassword(string password) {
             return userPassword.CheckPassword(password);
         }
@@ -131,7 +152,7 @@ namespace Ledger {
 
         }
 
-        // private methods
+        // Private methods: Record transaction; must include at least a verb and value.
         private void recordTransaction(string verb, double value) {
             transactionHistory.Add(new Transaction(verb, value));
         }
@@ -239,6 +260,73 @@ namespace Ledger {
                 return false;
             }
             return currentAccount.Withdraw(amount, out msg);
+        }
+
+        public bool LoadAccounts(string fileName, out string msg) {
+            if (!File.Exists(fileName)) {
+                msg = $"File \"{fileName}\" not found.";
+                return false;
+            }
+
+            bool success = true;
+            List<Account> loadedAccounts = new List<Account>();
+            Stream openFileStream = null;
+            try {
+                openFileStream = File.OpenRead(fileName);
+                BinaryFormatter deserializer = new BinaryFormatter();
+                loadedAccounts = (List<Account>)deserializer.Deserialize(openFileStream);
+                msg = $"Accounts loaded successfully from \"{fileName}\".";
+            }
+            catch (SerializationException e) {
+                msg = "Error while deserializing: " + e.Message;
+                success = false;
+            }
+            catch (Exception e) {
+                msg = "Error duing I/O: " + e.Message;
+                success = false;
+            }
+            finally {
+                if (openFileStream != null) 
+                    openFileStream.Close();
+            }
+            
+            if (success) {
+                // Clear the current account information and save reference to the loaded accounts
+                currentAccount = null;
+                accounts.Clear();
+                accounts = loadedAccounts;
+            }
+            return success;
+        }
+
+        public bool SaveAccounts(string fileName, out string msg){
+            if (accounts.Count == 0) {
+                msg = "No accounts to save. Type \"new\" to create an account.";
+                return false;
+            }
+
+            bool success = true;
+            Stream saveFileStream = null;
+            try {
+                saveFileStream = File.Create(fileName);
+                BinaryFormatter serializer = new BinaryFormatter();
+                serializer.Serialize(saveFileStream, accounts);
+                msg = $"Account saved successfully to \"{fileName}\".";
+            }
+            catch (SerializationException e) {
+                msg = "Error while serializing: " + e.Message;
+                success = false;
+            }
+            catch (Exception e) {
+                msg = "Error duing I/O: "  + e.Message;
+                success = false;
+            }
+            finally {
+                if (saveFileStream != null) 
+                    saveFileStream.Close();
+            }
+            
+            return success;
         }
 
         // Private method: checks whether a given name matches in the list of 

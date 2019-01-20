@@ -12,6 +12,8 @@ namespace Ledger {
             options["new"] = newUser;
             options["logon"] = logOnUser;
             options["logout"] = logOutUser;
+            options["save accounts"] = saveAccounts;
+            options["load accounts"] = loadAccounts;
             options["balance"] = balance;
             options["deposit"] = deposit;
             options["withdraw"] = withdraw;
@@ -31,7 +33,7 @@ namespace Ledger {
 
                 // Ensure user cannot perform actions that require login without being logged on.
                 // ...feels like there is a better way, but I'll go with this for now...
-                if (!manager.LoggedOn && (input.Equals("balance") || input.Equals("deposit") || input.Equals("withdraw") || input.Equals("history"))) {
+                if (!manager.LoggedOn && requiresLogOn(input)) {
                     Console.WriteLine($"Must be logged on to perform \"{input}\".");
                 } else if (!options.ContainsKey(input)) {
                     Console.WriteLine($"Option \"{input}\" not recognized."); 
@@ -43,13 +45,23 @@ namespace Ledger {
             } 
         }
 
+        private bool requiresLogOn(string option) {
+            if (option.Equals("deposit") ||
+                option.Equals("withdraw") ||
+                option.Equals("balance") ||
+                option.Equals("history") ) 
+                return true;
+
+            return false;
+        }
+
         // TODO: load existing users from persistant storage
         private void loadUsers() {
 
         }
 
         private void help() {
-            Console.WriteLine("Always available: new, logon, logout, help, quit");
+            Console.WriteLine("Always available: new, logon, logout, load accounts, save accounts, help, quit");
             Console.WriteLine("When logged on: balance, deposit, withdraw, history");
         }
 
@@ -98,6 +110,22 @@ namespace Ledger {
                 return;
             
             manager.LogOut();
+        }
+
+        private void loadAccounts() {
+            Console.Write("Filename >");
+            string fileName = Console.ReadLine();
+            string msg;
+            manager.LoadAccounts(fileName, out msg);
+            Console.WriteLine(msg);
+        }
+
+        private void saveAccounts() {
+            Console.Write("Filename >");
+            string fileName = Console.ReadLine();
+            string msg;
+            manager.SaveAccounts(fileName, out msg);
+            Console.WriteLine(msg);
         }
 
         private void balance() {

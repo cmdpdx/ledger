@@ -10,22 +10,41 @@ class Example {
 }
 ```
 
-## Namespace: Ledger
+## namespace Ledger
 * **Account**: Transaction ledger for a single account
 * **AccountManager**: Managers logging onto/off of accounts and interacting with accounts.
 
 ### class Account 
 #### Constructor
-**Account(string userName, string password)**: Create an Account object with the supplied userName and password. Password is stored hashed using SHA256.
+**`Account(string userName, string password)`**: Create an Account object with the supplied userName and password. Password is stored hashed using SHA256.
 
 #### Public Properties
-* **_string_ UserName**: Name associated with the account
-* **_double_ Balance**: Current account balance
-* **_DateTime_ LastLogOn**: DateTime of last logon to the account. Set on creation and by calling UpdateLastLogOn().
-* **_List\<string\>_ TransactionHistory**: List of strings of all transactions recorded on the account.
+* **`string UserName`**: Name associated with the account
+* **`double Balance`**: Current account balance
+* **`DateTime LastLogOn`**: DateTime of last logon to the account. Set on creation and by calling UpdateLastLogOn().
+* **`List<string> TransactionHistory`**: List of strings of all transactions recorded on the account.
 
 #### Public Methods
-* **_bool_ Deposit(double amount, out string msg)**: Record a deposit on the account. Returns true/false to indicate success of deposit. Output parameter msg contains future information.
-* **_bool_ Withdraw(double amount, out string msg)**: Record a withdrawl on the account. Returns true/false to indicate success of withdrawl. Output parameter msg contains future information.
-* **_bool_ CheckPassword(string password)**: Tests if the supplied password's hash matches the account's password's hash.
-* **_void_ UpdateLastLogOn()**: Sets LastLogOn to DateTime.Now.
+* **`bool Deposit(double amount, out string msg)`**: Record a deposit on the account. Returns true/false to indicate success of deposit. Output parameter msg contains future information.
+* **`bool Withdraw(double amount, out string msg)`**: Record a withdrawl on the account. Returns true/false to indicate success of withdrawl. Output parameter msg contains future information.
+* **`bool CheckPassword(string password)`**: Tests if the supplied password's hash matches the account's password's hash.
+* **`void UpdateLastLogOn()`**: Sets LastLogOn to DateTime.Now.
+
+### class AccountManager
+#### Constructor
+**`AccountManager()`**: Create a new empty AccountManager.
+
+#### Public Properties
+* **`bool LoggedOn`**: Is there an account currently logged on?
+* **`string UserName`**: UserName of current account logged on. Returns string.Empty if no account logged on.
+* **`double Balance`**: Balance of current account logged on. Returns 0 if no account logged on.
+* **`List<string> TransactionHistory`**: TransactionHistory of current account logged on. Returns null if no account logged on.
+
+#### Public Methods
+* **`bool CreateAccount(string userName, string password, out string msg)`**: Creates a new Account with the supplied credentials, if the `userName` is not already taken. Adds the new account to List of accounts, and sets it to the current account. Returns `true/false` to indicate success of creation. Output parameter `msg` contains additional information.
+* **`bool LogOn(string userName, string password, out string msg)`**: Log on to the given account using the supplied password. Checks if user exists and if password is correct. Updates account's `LastLogOn`. Returns `true/false` to indicate success of logging on. Output parameter `msg` contains error message on failure and timestamp of `LastLogOn` on success.
+* **`void LogOut()`**: Log out the current account.
+* **`bool Deposit(double amount, out string msg)`**: Attempt to deposit the given amount into the current account, if logged on. Returns `true/false` to indicate success or failure of deposit. Output parameter `msg` contains additional information.
+* **`bool Withdraw(double amount, out string msg)`**: Attempt to withdraw the given amount into the current account, if logged on. Returns `true/false` to indicate success or failure of withdrawl. Output parameter `msg` contains additional information.
+* **`bool LoadAccounts(string fileName, out string msg)`**: Load account information from the given fileName. Any current accounts are lost (not merged with accounts from file; this is a future feature). Returns `true/false` to indicate success or failure. Output parameter `msg` contains error message on faiure. 
+* **`bool SaveAccounts(string fileName, out string msg)`**: Save account information to the given fileName. File is overwritten if it already exists. Returns `true/false` to indicate success or failure. Output parameter `msg` contains error message on faiure. 

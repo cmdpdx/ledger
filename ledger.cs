@@ -79,9 +79,10 @@ namespace Ledger {
         private double balance;
         private List<Transaction> transactionHistory;
 
-        public Account(string name, string pass) {
-            UserName = name;
-            userPassword = new Password(pass);
+        // Constructor
+        public Account(string userName, string password) {
+            UserName = userName;
+            userPassword = new Password(password);
             balance = 0;
             LastLogOn = DateTime.Now;
             transactionHistory = new List<Transaction>();
@@ -165,14 +166,14 @@ namespace Ledger {
         //  string msg - Output parameter; message indicates success or failure (username already exists)
         // Returns: 
         //  bool - true if account successfully created; false otherwise
-        public bool CreateAccount(string user, string pass, out string msg) {
+        public bool CreateAccount(string userName, string password, out string msg) {
             // Does this username already exist?
-            if (isValidUser(user)) {
-                msg = $"Username {user} already exists.";
+            if (isValidUser(userName)) {
+                msg = $"Username {userName} already exists.";
                 return false;
             }
-            msg = $"Account created: {user}";
-            currentAccount = new Account(user, pass);
+            msg = $"Account created: {userName}";
+            currentAccount = new Account(userName, password);
             accounts.Add(currentAccount);
             return true;
         }
@@ -183,15 +184,15 @@ namespace Ledger {
         //  string msg - Output parameter; error message on failure, timestamp of last logon on success
         // Returns: 
         //  bool - true if successfully logged on; false otherwise
-        public bool LogOn(string user, string pass, out string msg) {
+        public bool LogOn(string userName, string password, out string msg) {
             // Check that the user actually exists.
-            if (!isValidUser(user)) {
-                msg = $"Username {user} not recognized.";
+            if (!isValidUser(userName)) {
+                msg = $"Username {userName} not recognized.";
                 return false;
             }
             // Find the correct account, check the password supplied matches.
-            var account = accounts.Find(x => x.UserName.Equals(user));
-            if (!account.CheckPassword(pass)) {
+            var account = accounts.Find(x => x.UserName.Equals(userName));
+            if (!account.CheckPassword(password)) {
                 msg = "Invalid password.";
                 return false;
             }
@@ -307,15 +308,14 @@ namespace Ledger {
                 if (saveFileStream != null) 
                     saveFileStream.Close();
             }
-            
             return success;
         }
 
         // Private method: checks whether a given name matches in the list of 
         // current users known. Returns true if user is found, false otherwise.
-        private bool isValidUser(string user) {
+        private bool isValidUser(string userName) {
             foreach (var account in accounts) {
-                if (account.UserName.Equals(user))
+                if (account.UserName.Equals(userName))
                     return true;
             }
             return false;

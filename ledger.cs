@@ -7,10 +7,11 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Formatters.Binary;
 
 namespace Ledger {
+    // A single user account to represent simple deposit/withdraw transactions.
     [Serializable()]
     public class Account {
 
-        // Private class to encapsulate storaging, hashing, and checking of passwords.
+        // Encapsulate storaging, hashing, and checking of passwords.
         [Serializable()]
         private class Password {
             private string hashedPassword;
@@ -39,36 +40,23 @@ namespace Ledger {
             }
         }
 
+        // Information stored for each transaction 
         [Serializable()]
         private struct Transaction {
             public DateTime TimeStamp { get; }
             public string Verb {get; set; }
             public double Value {get; set; }
-            public bool Success {get; set; }
-            public string Message {get; set; }
+            public double Balance {get; set; }
 
-            public Transaction(string verb, double value) {
+            public Transaction(string verb, double value, double balance) {
                 TimeStamp = DateTime.Now;
                 Verb = verb;
                 Value = value;
-                Success = true;
-                Message = string.Empty;
-            }
-
-            public Transaction(string verb, double value, bool success, string message) {
-                TimeStamp = DateTime.Now;
-                Verb = verb;
-                Value = value;
-                Success = success;
-                Message = message;
+                Balance = balance;
             }
 
             public override string ToString() {
-                string s = $"{TimeStamp} -- {Verb} (${Value}) : {Success ? "OK" : "FAILED"}";
-                if (!Message.Equals(string.Empty)) {
-                    s += $" : {Message}";
-                }
-                return s;
+                return $"{TimeStamp} : {Verb} (${Value}) : Balance ${Balance}";
             }
         }
 
@@ -86,12 +74,11 @@ namespace Ledger {
             }
         }
 
-        // Non-property user account fields
+        // Non-property user account private fields
         private Password userPassword;
         private double balance;
         private List<Transaction> transactionHistory;
 
-        // Constructor
         public Account(string name, string pass) {
             UserName = name;
             userPassword = new Password(pass);
@@ -110,8 +97,8 @@ namespace Ledger {
                 msg = $"Deposit amount ({amount}) must be positive.";
                 return false; 
             }
-            msg = $"Deposited {amount}.";
             balance += amount;
+            msg = $"Deposited ${amount}. Current balance ${balance}.";
             recordTransaction("deposit", amount);
             return true;
         }
@@ -123,22 +110,15 @@ namespace Ledger {
         public bool Withdraw(double amount, out string msg) {
             // Don't allow negative withdrawls
             if (amount < 0) {
-                msg = $"Withdrawl amount (${amount}) must be positive.";
+                msg = $"Withdrawl amount ({amount}) must be positive.";
                 return false;
             }
-            // Don't allow withdrawls larger than current balance. Record failed withdrawl on transaction history
-            if (amount > balance) {
-                recordTransaction("withdrawl", amount, false, "insufficient funds");
-                msg = $"Insufficient funds to withdraw {amount}. (Current balance ${balance})";
-                return false;
-            }
-            msg = $"Withdrew {amount}.";
             balance -= amount;
+            msg = $"Withdrew ${amount}. Current balance ${balance}.";
             recordTransaction("withdrawl", amount);
             return true;
         }
 
-        // Test whether the supplied password matches this account's password
         public bool CheckPassword(string password) {
             return userPassword.CheckPassword(password);
         }
@@ -147,21 +127,15 @@ namespace Ledger {
             LastLogOn = DateTime.Now;
         }
 
-        // TODO: save account info to persistent storage
-        public void store() {
-
-        }
-
-        // Private methods: Record transaction; must include at least a verb and value.
+        // Record transaction; must include at least a verb and value.
         private void recordTransaction(string verb, double value) {
-            transactionHistory.Add(new Transaction(verb, value));
-        }
-        private void recordTransaction(string verb, double value, bool success, string message) {
-            transactionHistory.Add(new Transaction(verb, value, success, message));
+            transactionHistory.Add(new Transaction(verb, value, Balance));
         }
     }
 
 
+    // Handles tracking multiple accounts: creating, logging on/off, account interaction,
+    // and saving/loading lists of accounts. Prefered way to interact with Accounts. 
     public class AccountManager {
         private Account currentAccount;
         private List<Account> accounts;
@@ -188,7 +162,7 @@ namespace Ledger {
         // Create a new user account with the supplied credentials.
         // Parameters:
         //  string user/pass - username and password, respectively, of account to create.
-        //  string msg - Output variable; message indicates success or failure (username already exists)
+        //  string msg - Output parameter; message indicates success or failure (username already exists)
         // Returns: 
         //  bool - true if account successfully created; false otherwise
         public bool CreateAccount(string user, string pass, out string msg) {
@@ -206,13 +180,13 @@ namespace Ledger {
         // Attempt to log onto on account with the supplied credentials.
         // Parameters:
         //  string user/pass - username and password, respectively, of account.
-        //  string msg - Output variable; error message on failure, timestamp of last logon on success
+        //  string msg - Output parameter; error message on failure, timestamp of last logon on success
         // Returns: 
         //  bool - true if successfully logged on; false otherwise
         public bool LogOn(string user, string pass, out string msg) {
             // Check that the user actually exists.
             if (!isValidUser(user)) {
-                msg = $"Username {user} not recognized. Create new account.";
+                msg = $"Username {user} not recognized.";
                 return false;
             }
             // Find the correct account, check the password supplied matches.
@@ -237,7 +211,7 @@ namespace Ledger {
         // Attempt to deposit into the current account, if logged on.
         // Parameters:
         //  double amount - Value to deposit into the current account.
-        //  string msg - Output variable; error message on failure; confirmation on success
+        //  string msg - Output parameter; error message on failure; confirmation on success
         // Returns:
         //  bool - true if successfully deposited; false otherwise.
         public bool Deposit(double amount, out string msg) {
@@ -251,7 +225,7 @@ namespace Ledger {
         // Attempt to withdraw from the current account, if logged on.
         // Parameters:
         //  double amount - Value to withdraw from the current account.
-        //  string msg - Output variable; error message on failure; confirmation on success
+        //  string msg - Output parameter; error message on failure; confirmation on success
         // Returns:
         //  bool - true if successfully withdrawn; false otherwise.
         public bool Withdraw(double amount, out string msg) {
@@ -262,7 +236,9 @@ namespace Ledger {
             return currentAccount.Withdraw(amount, out msg);
         }
 
-        public bool LoadAccounts(string fileName, out string msg) {
+        // Load account information from the provided file.
+        // Returns: true if succesfully loaded accounts; false otherwise.
+        public bool LoadAccounts(string fileName, out string msg) { 
             if (!File.Exists(fileName)) {
                 msg = $"File \"{fileName}\" not found.";
                 return false;
@@ -271,6 +247,7 @@ namespace Ledger {
             bool success = true;
             List<Account> loadedAccounts = new List<Account>();
             Stream openFileStream = null;
+            // Attempt to open the provided file and deserialize its contents. 
             try {
                 openFileStream = File.OpenRead(fileName);
                 BinaryFormatter deserializer = new BinaryFormatter();
@@ -281,17 +258,18 @@ namespace Ledger {
                 msg = "Error while deserializing: " + e.Message;
                 success = false;
             }
+            // File.OpenRead can throw many IO exceptions, catch them all here.
             catch (Exception e) {
-                msg = "Error duing I/O: " + e.Message;
+                msg = "Error while opening the file: " + e.Message;
                 success = false;
             }
             finally {
                 if (openFileStream != null) 
                     openFileStream.Close();
             }
-            
+
+            // Clear the current account information and save reference to the loaded accounts
             if (success) {
-                // Clear the current account information and save reference to the loaded accounts
                 currentAccount = null;
                 accounts.Clear();
                 accounts = loadedAccounts;
@@ -299,14 +277,17 @@ namespace Ledger {
             return success;
         }
 
+        // Save account information to the provided file.
+        // Returns: true if succesfully saved accounts; false otherwise.
         public bool SaveAccounts(string fileName, out string msg){
             if (accounts.Count == 0) {
-                msg = "No accounts to save. Type \"new\" to create an account.";
+                msg = "No accounts to save.";
                 return false;
             }
 
             bool success = true;
             Stream saveFileStream = null;
+            // Attempt to create/overwrite the provided file and serialize the List of Accounts  
             try {
                 saveFileStream = File.Create(fileName);
                 BinaryFormatter serializer = new BinaryFormatter();
@@ -317,8 +298,9 @@ namespace Ledger {
                 msg = "Error while serializing: " + e.Message;
                 success = false;
             }
+            // File.Create can throw many IO exceptions, catch them all here.
             catch (Exception e) {
-                msg = "Error duing I/O: "  + e.Message;
+                msg = "Error duing file creation/overwriting: "  + e.Message;
                 success = false;
             }
             finally {
